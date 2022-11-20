@@ -24,11 +24,12 @@ save_fares_path = "saved_fares.csv"
 save_loc_codes_path = "location_codes.csv"
 radius = 1.0 #miles
 beds = 2
+days_in_office = 22*(2/5)
 
 file = 'table-1410-passenger-entries-and-exits-and-interchanges-by-station.csv'
 #location = (51.5216848296857, -0.13785953967373285) # Arup 8FS.
 #location = (54.774895878125825, -1.574515102594818) # Hatfield
-location = (51.45024102401295, -2.588027316824446) # Arup Bristol
+office = (51.45024102401295, -2.588027316824446) # Arup Bristol
 n_stations = 20
 
 # Finding closest n stations to coords
@@ -49,19 +50,15 @@ with open(save_loc_codes_path, 'r') as f:
 # Get fares and rents
 closest_stations['Fares'] = -1
 closest_stations['Rent'] = -1
+closest_stations['Combined'] = -1
 for n in range(len(closest_stations)):
     closest_stations['Fares'][n] = get_anytime_fare(closest_stations['TLC'][n],target['TLC'][0],save_fares_path)
-    closest_stations['Rent'][n] = median(rental_price_scraper(rm_codes[n]['Rightmove'] , radius, beds))
-
-
-
-
-
-# Rightmove
-
-for n in range(closest_stations):
-    
-
+    rents = rental_price_scraper(rm_codes[n]['Rightmove'] , radius, beds)
+    if len(rents) == 0:
+        closest_stations['Rent'][n] = -2    
+    else:
+        closest_stations['Rent'][n] = median(rents)
+        closest_stations['Combined'][n] = closest_stations['Rent'][n] +  days_in_office*closest_stations['Fares'][n]
 
 
 # Mapping
@@ -69,26 +66,32 @@ for_map = closest_stations
 
 # Working out colour gradient
 
-min_fare = min(for_map['Fares'].values)
-max_fare = max(for_map['Fares'].values)
+min_fare = min(for_map['Combined'].values)
+max_fare = max(for_map['Combined'].values)
 min_colour = 25
 max_colour = 255
 
 diff = max_fare - min_fare
 
-colours = np.round((((for_map['Fares'].values-min_fare)/diff) * (max_colour-min_colour)) + min_colour,).astype(int)
+colours = np.round((((for_map['Combined'].values-min_fare)/diff) * (max_colour-min_colour)) + min_colour,).astype(int)
 
 
-m = folium.Map(location, zoom_start=8)
+m = folium.Map(office, zoom_start=8)
 
 for n in range(len(for_map)):
+    c = "#"+np.base_repr(colours[n],16)+"0000"
+    print(for_map['Combined'].values[n])
+    if for_map['Combined'].values[n] == -1:
+        print("Green")
+        c = "#00FF00"
+        # no housing available
     folium.Circle(
         location=[for_map['Latitude'].values[n],for_map['Longitude'].values[n]],
         radius=1610, #1mile
-        popup=for_map['Station name'].values[n]+" - "+for_map['Fares'].values[n].astype(str),
-        color="#"+np.base_repr(colours[n],16)+"0000",
+        popup=for_map['Station name'].values[n]+", Train: "+(days_in_office*for_map['Fares'].values[n]/100).astype(str) + ", Rent: "+(for_map['Rent'].values[n]/100).astype(str) + ", Total: "+(for_map['Combined'].values[n]/100).astype(str),
+        color=c,
         fill=True,
-        fill_color="#"+np.base_repr(colours[n],16)+"0000",
+        fill_color=c,
     ).add_to(m)
 
 m.save("map.html")
