@@ -26,8 +26,13 @@ def get_anytime_fare(origin, destination, path):
             return local_fares[n]['Fare']
         
     # No fare saved locally, continuing to make API request.
+    # Load API Credentials
+    f = open('credentials.txt', mode='r')
+    user, pwrd = f.read().split(',')
+    response = requests.get(api_url, auth=(user, pwrd))
+    f.close()
+    # Make API call
     print("Calling API")
-    response = requests.get(api_url, auth=('samgoring','7R#zj6keoo8K6jHQ'))
     r = response.json()
     # Extracting the anytime fare.
     # if 'fares' not in r.keys():
